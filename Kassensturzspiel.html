@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kassensturz</title>
+</head>
+<body>
+
+
+<style>
+/* Layout: eine Bildschirmseite pro Spielschritt; Mission als Zwei-Spalten-Pult (Waage links, Stellschrauben rechts), am Handy gestapelt */
+:root{
+  --bg:#EEF2F7; --surface:#FFFFFF; --sunk:#E3E9F2; --ink:#12263F; --ink2:#4A5C73; --line:#D0D9E5;
+  --accent:#2B59C3; --accent-ink:#FFFFFF; --accent-soft:#E1E9FA;
+  --flag:#C8372D; --flag-soft:#FBE6E3; --pos:#0E7F64; --pos-soft:#DDF2EC; --neg:#C8372D;
+  --band:#C8372D; --last:#D9731F; --last-soft:#FBEBDC; --gold:#C98A0B; --star-off:#C3CCD8;
+  --news:"Georgia","Times New Roman",serif;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1826; --surface:#172338; --sunk:#1E2C44; --ink:#E7EDF6; --ink2:#A2B1C6; --line:#2C3D57;
+  --accent:#7EA3FF; --accent-ink:#0F1826; --accent-soft:#22355A;
+  --flag:#FF7A6B; --flag-soft:#3D2226; --pos:#45CFA6; --pos-soft:#173A33; --neg:#FF7A6B;
+  --band:#A8302A; --last:#F2A15C; --last-soft:#3A2A1C; --gold:#F2C14E; --star-off:#3B4B63; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1826; --surface:#172338; --sunk:#1E2C44; --ink:#E7EDF6; --ink2:#A2B1C6; --line:#2C3D57;
+  --accent:#7EA3FF; --accent-ink:#0F1826; --accent-soft:#22355A;
+  --flag:#FF7A6B; --flag-soft:#3D2226; --pos:#45CFA6; --pos-soft:#173A33; --neg:#FF7A6B;
+  --band:#A8302A; --last:#F2A15C; --last-soft:#3A2A1C; --gold:#F2C14E; --star-off:#3B4B63; color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:17px;line-height:1.5;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 48px}
+h1,h2,h3{margin:0;line-height:1.15;text-wrap:balance}
+p{margin:0}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:8px}
+.btn{appearance:none;border:2px solid var(--accent);background:transparent;color:var(--accent);font-weight:700;border-radius:999px;padding:10px 18px;min-height:46px;cursor:pointer}
+.btn:hover{background:var(--accent-soft)}
+.btn.solid{background:var(--accent);color:var(--accent-ink)}
+.btn.quiet{border-color:var(--line);color:var(--ink2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.sub{color:var(--ink2)}
+.small{font-size:.9rem}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;font-weight:700;border-radius:999px;padding:3px 10px;background:var(--sunk);color:var(--ink2)}
+.chip.ok{background:var(--pos-soft);color:var(--pos)}
+.chip.bad{background:var(--flag-soft);color:var(--flag)}
+.chip.acc{background:var(--accent-soft);color:var(--accent)}
+.stars{display:inline-flex;gap:2px;font-size:1.15rem;letter-spacing:0}
+.stars .on{color:var(--gold)} .stars .off{color:var(--star-off)}
+input[type=text],textarea{width:100%;font:inherit;color:var(--ink);background:var(--surface);border:2px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:110px;resize:vertical}
+input[type=text]:focus,textarea:focus{border-color:var(--accent);outline:none}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.seg button{flex:1 1 140px;appearance:none;border:2px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;min-height:48px;font-weight:700;cursor:pointer}
+.seg button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+
+/* ---- Start ---- */
+.hero{display:grid;gap:22px;padding-block:28px 8px}
+.masthead{border-top:6px solid var(--ink);border-bottom:2px solid var(--ink);padding:10px 0 12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
+.masthead .paper{font-family:var(--news);font-weight:700;font-size:clamp(2.6rem,9vw,5.2rem);letter-spacing:-.02em;line-height:1}
+.masthead .date{font-family:var(--news);font-style:italic;color:var(--ink2)}
+.lede{font-family:var(--news);font-size:clamp(1.25rem,3vw,1.6rem);line-height:1.35;max-width:38ch}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.rules .card h3{font-size:1.05rem;margin-bottom:4px}
+.start-form{display:grid;gap:8px;max-width:420px}
+.start-form label{font-weight:700}
+
+/* ---- Map ---- */
+.topbar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;padding-block:6px 14px;border-bottom:2px solid var(--ink);margin-bottom:18px}
+.topbar .brand{font-family:var(--news);font-weight:700;font-size:1.6rem}
+.topbar .stat{font-weight:700}
+.chapters{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.chapter h2{font-size:1.3rem}
+.chapter p{color:var(--ink2);font-size:.95rem;margin:6px 0 12px}
+.lvl{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;text-align:left;appearance:none;border:2px solid var(--line);background:var(--surface);border-radius:12px;padding:10px 12px;cursor:pointer;margin-top:8px;min-height:56px}
+.lvl:hover:not(:disabled){border-color:var(--accent)}
+.lvl:disabled{cursor:not-allowed;opacity:.6}
+.lvl .t{font-weight:700}
+.lvl .n{font-size:.8rem;color:var(--ink2);display:block;font-weight:700}
+
+/* ---- News ---- */
+.news{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.news .band{background:var(--band);color:#FFF8F5;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:.85rem;padding:8px 18px}
+.news .body{padding:22px 18px 20px;display:grid;gap:12px}
+.news h1{font-family:var(--news);font-size:clamp(1.8rem,5vw,3rem);letter-spacing:-.01em}
+.news .txt{font-family:var(--news);font-size:1.2rem;line-height:1.45;max-width:60ch}
+.crisis-chips{display:flex;flex-wrap:wrap;gap:8px}
+
+/* ---- Mission ---- */
+/* ---- Kernfrage / Lagebild ---- */
+.frage{display:grid;gap:4px;border-left:5px solid var(--last);padding:4px 0 4px 14px}
+.frage .k{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--last)}
+.frage p{font-family:var(--news);font-size:1.25rem;line-height:1.3;text-wrap:balance}
+.lage{padding:0;overflow:hidden}
+.lage .band{background:var(--band);color:#FFF8F5;font-weight:800;letter-spacing:.12em;text-transform:uppercase;font-size:.75rem;padding:6px 16px}
+.lage .in{padding:14px 16px 16px;display:grid;gap:10px}
+.lage h2{font-family:var(--news);font-size:1.35rem}
+.lage .txt{font-family:var(--news);font-size:1rem;line-height:1.4;color:var(--ink2)}
+.lagestrip{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--last);border-radius:12px;padding:8px 12px;margin-bottom:12px;box-shadow:0 6px 16px rgba(18,38,63,.12)}
+  .lagestrip .k{font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:var(--last)}
+  .lagestrip p{font-family:var(--news);font-size:.98rem;line-height:1.3}
+  .lagestrip b{grid-row:1/3;grid-column:2;font-variant-numeric:tabular-nums;color:var(--tone);font-size:1.15rem;white-space:nowrap}
+@media (min-width:900px){.lagestrip{padding:10px 16px}.lagestrip p{font-size:1.15rem}}
+.lvhead{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.lvhead h1{font-size:clamp(1.4rem,3.6vw,2rem)}
+.grid{display:grid;gap:16px}
+@media (min-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start}}
+.board{display:grid;gap:14px}
+.scale{--tone:var(--pos)}
+.scale.deficit{--tone:var(--neg)}
+.scale svg{display:block;width:100%;height:auto;max-height:240px}
+.beam{stroke:var(--tone);stroke-width:7;stroke-linecap:round}
+.pivot{fill:var(--tone)}
+.pole{stroke:var(--ink2);stroke-width:5;stroke-linecap:round}
+.foot{fill:var(--ink2)}
+.string{stroke:var(--ink2);stroke-width:2}
+.pan{fill:var(--accent-soft);stroke:var(--ink2);stroke-width:2.5}
+.pan-l{font-family:var(--ui);font-size:14px;fill:var(--ink2);text-anchor:middle}
+.pan-v{font-family:var(--ui);font-weight:700;font-size:17px;fill:var(--ink);text-anchor:middle}
+.saldo{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
+.saldo b{font-size:1.6rem;color:var(--tone);font-variant-numeric:tabular-nums}
+.target{font-size:.9rem;color:var(--ink2)}
+.burden h3,.levers h3,.reds h3{font-size:1.05rem;margin-bottom:8px}
+.brow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 0;border-top:1px solid var(--line);font-size:.95rem}
+.brow:first-of-type{border-top:0}
+.brow .val{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.brow .val.last{color:var(--last)} .brow .val.prof{color:var(--accent)}
+.bar{grid-column:1/-1;height:10px;background:var(--sunk);border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px;background:var(--last);transition:width .25s}
+.bar i.prof{background:var(--accent)}
+.main-note{margin-top:8px;font-weight:700}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metric{background:var(--sunk);border-radius:10px;padding:8px 10px;min-width:0}
+.metric b{display:block;font-size:1.1rem;font-variant-numeric:tabular-nums}
+.metric span{font-size:.82rem;color:var(--ink2)}
+.param{padding:12px 0;border-top:1px solid var(--line)}
+.param:first-of-type{border-top:0;padding-top:0}
+.ph{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ph label{font-weight:700;flex:1 1 160px;min-width:0}
+.ph output{font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+.gtag{font-size:.78rem;font-weight:700;color:var(--ink2)}
+.q{appearance:none;width:32px;height:32px;border-radius:50%;border:2px solid var(--accent);background:transparent;color:var(--accent);font-weight:800;cursor:pointer;padding:0;flex:0 0 auto}
+.q[aria-expanded="true"]{background:var(--accent);color:var(--accent-ink)}
+.info{background:var(--accent-soft);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:.95rem;display:grid;gap:6px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:36px;background:transparent;margin:2px 0;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:linear-gradient(to right,var(--accent) var(--pct,50%),var(--line) var(--pct,50%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--surface);border:4px solid var(--accent);margin-top:-10px}
+input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:8px;border-radius:4px;background:var(--accent)}
+input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--surface);border:4px solid var(--accent)}
+.pf{display:flex;justify-content:space-between;font-size:.8rem;color:var(--ink2)}
+.red{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 10px;padding:8px 0;border-top:1px solid var(--line);align-items:start}
+.red:first-of-type{border-top:0}
+.red .who{font-size:.82rem;color:var(--ink2);font-weight:700}
+.red .dem{font-weight:600}
+.decide{display:grid;gap:8px;position:sticky;bottom:0;background:var(--bg);padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line)}
+.banner{background:var(--last-soft);border-radius:12px;padding:10px 14px;font-weight:600;margin-bottom:14px}
+
+/* ---- Press ---- */
+.press{display:grid;gap:14px}
+.quote{display:grid;gap:4px;border-left:5px solid var(--line);padding:6px 0 6px 14px}
+.quote.ok{border-color:var(--pos)} .quote.bad{border-color:var(--flag)} .quote.last{border-color:var(--last)} .quote.prof{border-color:var(--accent)}
+.quote q{font-family:var(--news);font-size:1.15rem;quotes:"„" "“"}
+.quote .by{font-size:.85rem;color:var(--ink2);font-weight:700}
+.starbig{font-size:2.4rem;letter-spacing:4px}
+.starbig .on{color:var(--gold)} .starbig .off{color:var(--star-off)}
+.concept{background:var(--ink);color:var(--bg);border-radius:var(--r);padding:20px;display:grid;gap:10px}
+.concept .k{font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--last)}
+.concept h2{font-family:var(--news);font-size:2rem}
+.concept .m{border-top:1px solid var(--ink2);padding-top:10px;font-weight:700}
+.starlist{display:grid;gap:6px;font-size:.95rem}
+.starlist div{display:flex;gap:8px;align-items:baseline}
+
+/* ---- Begriffe & Bilanz ---- */
+.terms{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.term h3{font-family:var(--news);font-size:1.3rem;margin-bottom:6px}
+.term.locked{opacity:.55}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.92rem;min-width:640px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2)}
+.badges{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.badge{display:grid;gap:2px}
+.badge.locked{opacity:.5}
+.badge b{font-size:1rem}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap" id="app" aria-live="polite"></div>
+
+<script>
+"use strict";
+/* ===== Modelle, Gruppen und Level (rein rechnerisch, ohne DOM) ===== */
+const nf=(v,d=0)=>new Intl.NumberFormat("de-DE",{minimumFractionDigits:d,maximumFractionDigits:d}).format(v);
+const sgn=(v,d=1)=>(v>0.049?"+":v<-0.049?"−":"")+nf(Math.abs(v),d);
+
+const CH=[
+/* ---------------- RENTE ---------------- */
+{id:"rente",name:"Rentenversicherung",short:"Rente",
+ intro:"Die Rentenkasse bezahlt jeden Monat die Renten von über 20 Millionen Menschen – aus den Beiträgen der heutigen Beschäftigten.",
+ groups:{
+  besch:{name:"Beschäftigte und Betriebe",who:"Gewerkschaften und Arbeitgeberverband"},
+  jung:{name:"Künftige Rentnerinnen und Rentner",who:"Jugendverband und IG Bau"},
+  rentner:{name:"Rentnerinnen und Rentner",who:"Sozialverband"},
+  steuer:{name:"Steuerzahlerinnen und Steuerzahler",who:"Finanzministerium"}},
+ params:{
+  contrib:{label:"Beitragssatz",min:15,max:28,step:0.1,def:18.6,fmt:v=>nf(v,1)+" %",group:"besch",
+   what:"Der Anteil vom Bruttolohn, der in die Rentenkasse fließt. Beschäftigte und Arbeitgeber zahlen je die Hälfte.",
+   effect:"Mehr Beitrag bringt sofort mehr Geld. Dafür bleibt Beschäftigten weniger Netto und Arbeit wird für Betriebe teurer."},
+  age:{label:"Renteneintrittsalter",min:63,max:72,step:1,def:67,fmt:v=>v+" Jahre",group:"jung",
+   what:"Ab welchem Alter man Rente bekommt.",
+   effect:"Später in Rente heißt: länger einzahlen und kürzer Rente beziehen. Das hilft der Kasse doppelt, ist aber hart für Menschen in körperlich anstrengenden Berufen."},
+  niveau:{label:"Rentenhöhe",min:80,max:110,step:1,def:100,fmt:v=>nf(v,0)+" % von heute",group:"rentner",
+   what:"Wie hoch die Renten im Vergleich zu heute sind.",
+   effect:"Niedrigere Renten sparen viel Geld. Wer nur eine kleine Rente hat, gerät dann aber schnell in Not."},
+  subsidy:{label:"Bundeszuschuss",min:0,max:250,step:5,def:100,fmt:v=>nf(v,0)+" Mrd. €",group:"steuer",
+   what:"Steuergeld, das der Staat zusätzlich in die Rentenkasse zahlt.",
+   effect:"Mehr Zuschuss schließt Lücken ohne höhere Beiträge. Das Geld fehlt dann aber für Schulen, Straßen oder Klimaschutz – oder die Steuern steigen."},
+  ratio:{label:"Beitragszahler je Rentner",def:1.8,fmt:v=>nf(v,2)},
+  le:{label:"Lebenserwartung",def:81,fmt:v=>v+" Jahre"}},
+ compute(s){
+  const payers=37*(1+0.012*(s.age-67));
+  const pens=payers/s.ratio*(1+0.03*(s.le-81))*(1-0.045*(s.age-67));
+  const rente=0.44*3800*(1+0.02*(s.age-67))*s.niveau/100;
+  const contrib=payers*s.contrib/100*3800*12/1000;
+  return{income:contrib+s.subsidy,expense:pens*rente*12/1000,
+   m:{beitrag:s.contrib/200*3800,rente:rente,ratio:payers/pens,jahre:Math.max(0,s.le-s.age)},
+   inParts:[["Beiträge",contrib],["Bundeszuschuss",s.subsidy]],outParts:[["Renten",pens*rente*12/1000]]};
+ },
+ metrics:[["besch","Dein Beitrag pro Monat",r=>nf(r.m.beitrag,0)+" €"],["rentner","Durchschnittsrente",r=>nf(r.m.rente,0)+" €"],["jung","Jahre mit Rente",r=>nf(r.m.jahre,0)],["steuer","Zahler je Rentner",r=>nf(r.m.ratio,2)]],
+ levels:[
+  {id:"r1",frage:"Wer soll die Rentenlücke schließen, wenn immer weniger Junge für immer mehr Ältere zahlen?",title:"Die Babyboomer gehen in Rente",
+   news:"Bis 2035 gehen die geburtenstarken Jahrgänge in Rente. Auf jeden Rentner kommen dann nur noch 1,4 statt 1,8 Beitragszahler.",
+   crisis:{ratio:1.4},
+   red:[["besch","Beitragssatz höchstens 22 %",(s,r)=>s.contrib<=22.05],
+        ["jung","Rente spätestens mit 69",(s,r)=>s.age<=69],
+        ["rentner","Durchschnittsrente mindestens 1.550 €",(s,r)=>r.m.rente>=1549.5],
+        ["steuer","Zuschuss höchstens 150 Mrd. €",(s,r)=>s.subsidy<=150]],
+   concept:{term:"Umlageverfahren",text:"Die Beiträge der Beschäftigten werden nicht angespart, sondern bezahlen sofort die Renten von heute. Deshalb trifft der demografische Wandel die Rentenkasse direkt: weniger Zahler, mehr Empfänger.",merke:"Die Rente ist kein Sparkonto, sondern ein Generationenvertrag."}},
+  {id:"r2",frage:"Wie verteilt man die Last einer alternden Gesellschaft gerecht zwischen den Generationen?",title:"Länger leben, weniger Junge",
+   news:"Die Menschen werden älter als erwartet. Gleichzeitig sinkt die Zahl der Beitragszahler je Rentner auf 1,5.",
+   crisis:{ratio:1.5,le:84},
+   red:[["besch","Beitragssatz höchstens 23 %",(s,r)=>s.contrib<=23.05],
+        ["jung","Rente spätestens mit 69",(s,r)=>s.age<=69],
+        ["rentner","Durchschnittsrente mindestens 1.500 €",(s,r)=>r.m.rente>=1499.5],
+        ["steuer","Zuschuss höchstens 160 Mrd. €",(s,r)=>s.subsidy<=160]],
+   concept:{term:"Generationengerechtigkeit",text:"Jede Lösung verteilt Lasten zwischen den Generationen: Höhere Beiträge belasten die Jungen heute, niedrigere Renten die Alten, ein späterer Renteneintritt die Jungen von morgen.",merke:"Gerecht ist eine Lösung, die keine Generation allein zahlen lässt."}}
+ ]},
+/* ---------------- KRANKEN ---------------- */
+{id:"kranken",name:"Krankenversicherung",short:"Kranken",
+ intro:"Die gesetzlichen Krankenkassen bezahlen Arztbesuche, Medikamente und Krankenhäuser für rund 74 Millionen Menschen.",
+ groups:{
+  besch:{name:"Beitragszahlende",who:"Gewerkschaften und Arbeitgeberverband"},
+  patient:{name:"Patientinnen und Patienten",who:"Patientenbeauftragte"},
+  familie:{name:"Familien",who:"Familienverband"},
+  privat:{name:"Privatversicherte",who:"Verband der Privatversicherer"}},
+ params:{
+  extra:{label:"Zusatzbeitrag der Kassen",min:0,max:5,step:0.1,def:2.9,fmt:v=>nf(v,1)+" %",group:"besch",
+   what:"Zusätzlich zum festen Grundbeitrag von 14,6 % legt jede Kasse einen Zusatzbeitrag fest.",
+   effect:"Er ist das Ventil für steigende Kosten. Mehr Zusatzbeitrag gleicht die Kasse aus, aber Versicherte und Betriebe zahlen mehr."},
+  leist:{label:"Leistungsumfang",min:85,max:100,step:1,def:100,fmt:v=>nf(v,0)+" % von heute",group:"patient",
+   what:"Welche Behandlungen die Kasse bezahlt. Unter 100 % fallen Leistungen weg oder Patienten zahlen mehr zu.",
+   effect:"Kürzungen sparen Geld. Kranke müssen dann aber mehr selbst bezahlen oder auf Behandlungen verzichten."},
+  family:{label:"Beitragsfreie Familienversicherung",min:0,max:100,step:5,def:100,fmt:v=>nf(v,0)+" %",group:"familie",
+   what:"Wie viele Kinder und Ehepartner ohne eigenes Einkommen beitragsfrei mitversichert sind.",
+   effect:"Weniger Familienversicherung bringt Beiträge von Angehörigen, belastet aber vor allem Familien mit Kindern."},
+  share:{label:"Anteil gesetzlich Versicherter",min:88,max:100,step:1,def:88,fmt:v=>nf(v,0)+" %",group:"privat",
+   what:"Bei 100 % wären alle Menschen gesetzlich versichert, auch Gutverdienende und Beamte (Idee der Bürgerversicherung).",
+   effect:"Mehr Gutverdienende zahlen ein, aber es kommen auch mehr Menschen dazu, die Leistungen bekommen. Privatversicherte verlieren ihre bisherige Versicherung."},
+  cost:{label:"Kostenentwicklung",def:0,fmt:v=>(v>0?"+":"")+nf(v,0)+" %"}},
+ compute(s){
+  const members=84*s.share/100,famTotal=members*0.216,famPaying=famTotal*(1-s.family/100);
+  const avgInc=2500*(1+0.004*(s.share-88)),rate=(14.6+s.extra)/100;
+  const contrib=((members-famTotal)*rate*avgInc*12+famPaying*rate*1200*12)/1000;
+  const perCap=4300*(1+s.cost/100)*s.leist/100;
+  return{income:contrib+14.5,expense:members*perCap/1000,
+   m:{beitrag:(14.6+s.extra)/200*3800,satz:14.6+s.extra,perCap:perCap,frei:famTotal-famPaying},
+   inParts:[["Beiträge",contrib],["Bundeszuschuss",14.5]],outParts:[["Behandlungen",members*perCap/1000]]};
+ },
+ metrics:[["besch","Dein Beitrag pro Monat",r=>nf(r.m.beitrag,0)+" €"],["besch","Gesamtbeitragssatz",r=>nf(r.m.satz,1)+" %"],["patient","Leistung je Versichertem",r=>nf(r.m.perCap,0)+" €"],["familie","Beitragsfrei versichert",r=>nf(r.m.frei,1)+" Mio."]],
+ levels:[
+  {id:"k1",frage:"Medizinischer Fortschritt soll allen helfen – aber wer bezahlt ihn?",title:"Teurer Fortschritt",
+   news:"Neue Krebsmedikamente und teure Geräte lassen die Kosten pro Versichertem um 15 % steigen.",
+   crisis:{cost:15},
+   red:[["besch","Gesamtbeitrag höchstens 19 %",(s,r)=>s.extra<=4.45],
+        ["patient","Leistungen mindestens 95 % von heute",(s,r)=>s.leist>=95],
+        ["familie","Familienversicherung mindestens 80 %",(s,r)=>s.family>=80],
+        ["privat","Anteil gesetzlich höchstens 94 %",(s,r)=>s.share<=94]],
+   concept:{term:"Solidarprinzip",text:"Der Beitrag richtet sich nach dem Einkommen, die Leistung nach dem Bedarf. Alle bekommen die gleiche Versorgung – egal, wie viel sie einzahlen.",merke:"Gesunde zahlen für Kranke, Gutverdienende für Geringverdienende."}},
+  {id:"k2",frage:"Höhere Beiträge, weniger Leistungen oder mehr Menschen in der Solidargemeinschaft: Wie sichern wir die Krankenversicherung?",title:"Alterung und Fortschritt",
+   news:"Mehr ältere Menschen und neue Therapien – die Kosten pro Versichertem steigen um 25 %.",
+   crisis:{cost:25},
+   red:[["besch","Gesamtbeitrag höchstens 19,5 %",(s,r)=>s.extra<=4.95],
+        ["patient","Leistungen mindestens 92 % von heute",(s,r)=>s.leist>=92],
+        ["familie","Familienversicherung mindestens 60 %",(s,r)=>s.family>=60],
+        ["privat","Anteil gesetzlich höchstens 96 %",(s,r)=>s.share<=96]],
+   concept:{term:"Zusatzbeitrag",text:"Reicht der feste Grundbeitrag nicht, erheben die Kassen einen Zusatzbeitrag. Er ist das Ventil für steigende Kosten und wird von Versicherten und Arbeitgebern je zur Hälfte bezahlt.",merke:"Steigende Gesundheitskosten landen am Ende fast immer bei den Beitragszahlenden."}}
+ ]},
+/* ---------------- PFLEGE ---------------- */
+{id:"pflege",name:"Pflegeversicherung",short:"Pflege",
+ intro:"Die Pflegeversicherung unterstützt rund sechs Millionen pflegebedürftige Menschen – zu Hause und im Heim.",
+ groups:{
+  besch:{name:"Beschäftigte und Betriebe",who:"Gewerkschaften und Arbeitgeberverband"},
+  pflege:{name:"Pflegebedürftige",who:"Sozialverband"},
+  angeh:{name:"Pflegende Angehörige",who:"Verband pflegender Angehöriger"},
+  steuer:{name:"Steuerzahlerinnen und Steuerzahler",who:"Finanzministerium"}},
+ params:{
+  rate:{label:"Beitragssatz",min:2,max:6,step:0.1,def:3.6,fmt:v=>nf(v,1)+" %",group:"besch",
+   what:"Der Anteil vom Bruttolohn für die Pflegeversicherung, geteilt zwischen Beschäftigten und Arbeitgebern.",
+   effect:"Mehr Beitrag bedeutet mehr Einnahmen, aber weniger Netto für alle Beschäftigten."},
+  benefit:{label:"Leistungen je Pflegegrad",min:70,max:120,step:5,def:100,fmt:v=>nf(v,0)+" % von heute",group:"pflege",
+   what:"Wie hoch die festen Zuschüsse der Kasse je Pflegegrad sind.",
+   effect:"Weniger Leistung spart Geld, erhöht aber den Eigenanteil. Wer ihn nicht zahlen kann, braucht Sozialhilfe."},
+  stat:{label:"Anteil Pflege im Heim",min:10,max:30,step:1,def:16,fmt:v=>nf(v,0)+" %",group:"angeh",
+   what:"Wie viele Pflegebedürftige im Heim leben. Der Rest wird zu Hause gepflegt, meist von Angehörigen.",
+   effect:"Heimplätze kosten die Kasse viel mehr. Weniger Heimplätze sparen Geld – dann pflegen aber Angehörige mehr, oft neben ihrem Job."},
+  zusch:{label:"Steuerzuschuss",min:0,max:20,step:1,def:0,fmt:v=>nf(v,0)+" Mrd. €",group:"steuer",
+   what:"Steuergeld für die Pflegekasse, etwa für pflegende Angehörige.",
+   effect:"Entlastet Beitragszahler und Pflegebedürftige, das Geld fehlt aber an anderer Stelle im Staatshaushalt."},
+  ratio:{label:"Pflegebedürftige je 100 Zahler",def:10,fmt:v=>nf(v,1)},
+  sev:{label:"Anteil Schwerpflege",def:20,fmt:v=>nf(v,0)+" %"},
+  le:{label:"Lebenserwartung",def:81,fmt:v=>v+" Jahre"}},
+ compute(s){
+  const needy=58*s.ratio/100*(1+0.06*(s.le-81));
+  const costPer=(1-s.sev/100)*8500+s.sev/100*19500;
+  const heim=1+(s.stat-16)/100*1.6;
+  const perNeedy=costPer*s.benefit/100*heim;
+  const contrib=58*s.rate/100*2500*12/1000;
+  return{income:contrib+s.zusch,expense:needy*perNeedy/1000,
+   m:{beitrag:s.rate/200*3800,needy:needy,per:perNeedy,zuhause:needy*(1-s.stat/100)},
+   inParts:[["Beiträge",contrib],["Steuerzuschuss",s.zusch]],outParts:[["Pflegeleistungen",needy*perNeedy/1000]]};
+ },
+ metrics:[["besch","Dein Beitrag pro Monat",r=>nf(r.m.beitrag,0)+" €"],["pflege","Pflegebedürftige",r=>nf(r.m.needy,1)+" Mio."],["pflege","Leistung je Person",r=>nf(r.m.per,0)+" €"],["angeh","Zu Hause gepflegt",r=>nf(r.m.zuhause,1)+" Mio."]],
+ levels:[
+  {id:"p1",frage:"Wer soll die Pflege in einer älter werdenden Gesellschaft bezahlen: Beitragszahler, Familien oder der Staat?",title:"Die Gesellschaft wird älter",
+   news:"Die Lebenserwartung steigt auf 86 Jahre, auf 100 Beitragszahler kommen 13 Pflegebedürftige.",
+   crisis:{le:86,ratio:13},
+   red:[["besch","Beitragssatz höchstens 4,9 %",(s,r)=>s.rate<=4.95],
+        ["pflege","Leistungen mindestens 90 % von heute",(s,r)=>s.benefit>=90],
+        ["angeh","Heimanteil mindestens 13 %",(s,r)=>s.stat>=13],
+        ["steuer","Steuerzuschuss höchstens 12 Mrd. €",(s,r)=>s.zusch<=12]],
+   concept:{term:"Teilleistungsprinzip",text:"Die Pflegeversicherung zahlt feste Beträge je Pflegegrad, nicht die vollen Kosten. Den Rest tragen die Pflegebedürftigen und ihre Familien als Eigenanteil.",merke:"Die Pflegeversicherung ist eine Teilkasko, keine Vollkasko."}},
+  {id:"p2",frage:"Wie viel Pflege bezahlt die Gemeinschaft – und wie viel müssen Pflegebedürftige selbst tragen?",title:"Mehr Schwerpflege",
+   news:"Der Anteil der Menschen mit Pflegegrad 4 und 5 steigt auf 35 %, gleichzeitig leben die Menschen länger.",
+   crisis:{sev:35,le:84},
+   red:[["besch","Beitragssatz höchstens 4,5 %",(s,r)=>s.rate<=4.55],
+        ["pflege","Leistungen mindestens 90 % von heute",(s,r)=>s.benefit>=90],
+        ["angeh","Heimanteil mindestens 14 %",(s,r)=>s.stat>=14],
+        ["steuer","Steuerzuschuss höchstens 8 Mrd. €",(s,r)=>s.zusch<=8]],
+   concept:{term:"Eigenanteil",text:"Was die Pflegeversicherung nicht bezahlt, zahlen die Pflegebedürftigen selbst. Reichen Rente und Erspartes nicht, springt das Sozialamt ein – bezahlt aus Steuern.",merke:"Kürzungen bei der Pflege verschieben Kosten oft nur zu Familien und Sozialamt."}}
+ ]},
+/* ---------------- ARBEITSLOSEN ---------------- */
+{id:"alv",name:"Arbeitslosenversicherung",short:"Arbeitslosen",
+ intro:"Die Arbeitslosenversicherung zahlt Arbeitslosengeld, wenn Menschen ihren Job verlieren, und hilft bei der Suche nach neuer Arbeit.",
+ groups:{
+  besch:{name:"Beschäftigte und Betriebe",who:"Gewerkschaften und Arbeitgeberverband"},
+  arbl:{name:"Arbeitslose",who:"Erwerbslosenverein"},
+  zukunft:{name:"Rücklage für künftige Krisen",who:"Bundesagentur für Arbeit"}},
+ params:{
+  rate:{label:"Beitragssatz",min:1.5,max:5,step:0.05,def:2.6,fmt:v=>nf(v,2)+" %",group:"besch",
+   what:"Der Anteil vom Bruttolohn für die Arbeitslosenversicherung, je zur Hälfte von Beschäftigten und Arbeitgebern.",
+   effect:"Mehr Beitrag bringt Geld, verteuert aber Arbeit. In einer Krise kann das zusätzliche Jobs kosten."},
+  repl:{label:"Lohnersatzquote",min:50,max:70,step:1,def:60,fmt:v=>nf(v,0)+" % vom letzten Netto",group:"arbl",
+   what:"Wie viel Prozent des letzten Nettogehalts man als Arbeitslosengeld bekommt.",
+   effect:"Weniger Arbeitslosengeld spart Geld. Wer seinen Job verliert, muss dann aber mit deutlich weniger auskommen."},
+  dur:{label:"Bezugsdauer",min:6,max:24,step:1,def:12,fmt:v=>v+" Monate",group:"arbl",
+   what:"Wie lange man höchstens Arbeitslosengeld bekommt.",
+   effect:"Kürzere Zahlung spart Geld, erhöht aber den Druck, schnell irgendeinen Job anzunehmen."},
+  reserve:{label:"Rücklage",min:-10,max:8,step:0.5,def:0,fmt:v=>v>0?nf(v,1)+" Mrd. € entnehmen":v<0?nf(-v,1)+" Mrd. € zurücklegen":"unverändert",group:"zukunft",
+   what:"Geld, das die Versicherung in guten Jahren zurückgelegt hat. Nach rechts entnimmst du Geld, nach links legst du Geld zurück.",
+   effect:"Die Rücklage hilft in der Krise, ohne Beiträge zu erhöhen. Was du heute entnimmst, fehlt in der nächsten Krise."},
+  konj:{label:"Konjunktur",def:0,fmt:v=>({"-2":"Rezession","-1":"Abschwung","0":"normal","1":"Aufschwung","2":"Boom"})[v]},
+  quote:{label:"Arbeitslosenquote",def:6,fmt:v=>nf(v,1)+" %"}},
+ compute(s){
+  const k=s.konj,q=Math.max(1,s.quote-0.9*k);
+  const recip=46*q/100*0.35*(0.35+0.65*s.dur/12);
+  const alg=2000*s.repl/100,algCost=recip*alg*12/1000,other=16+8*q/6;
+  const employed=34*(1-0.012*(q-6));
+  const contrib=employed*s.rate/100*3600*(1+0.01*k)*12/1000;
+  const inc=contrib+Math.max(0,s.reserve),exp=algCost+other+Math.max(0,-s.reserve);
+  return{income:inc,expense:exp,
+   m:{beitrag:s.rate/200*3800,alg:alg,quote:q,recip:recip},
+   inParts:[["Beiträge",contrib],["aus der Rücklage",Math.max(0,s.reserve)]],
+   outParts:[["Arbeitslosengeld",algCost],["Vermittlung u. a.",other],["in die Rücklage",Math.max(0,-s.reserve)]]};
+ },
+ metrics:[["besch","Dein Beitrag pro Monat",r=>nf(r.m.beitrag,0)+" €"],["arbl","Arbeitslosengeld (Beispiel)",r=>nf(r.m.alg,0)+" €"],["arbl","Arbeitslosenquote",r=>nf(r.m.quote,1)+" %"],["arbl","Empfänger",r=>nf(r.m.recip,2)+" Mio."]],
+ levels:[
+  {id:"a1",frage:"Soll die Arbeitslosenversicherung in der Krise sparen – oder gerade jetzt helfen?",title:"Die Rezession kommt",
+   news:"Die Wirtschaft schrumpft. Viele Betriebe entlassen Beschäftigte, die Arbeitslosenquote steigt.",
+   crisis:{konj:-2},
+   red:[["besch","Beitragssatz höchstens 2,8 %",(s,r)=>s.rate<=2.825],
+        ["arbl","Mindestens 58 % Lohnersatz und 10 Monate",(s,r)=>s.repl>=58&&s.dur>=10],
+        ["zukunft","Höchstens 6 Mrd. € aus der Rücklage",(s,r)=>s.reserve<=6]],
+   concept:{term:"Automatischer Stabilisator",text:"In der Krise sinken die Einnahmen und die Ausgaben steigen. Die Versicherung zahlt trotzdem weiter – so können Arbeitslose weiter einkaufen, und das stützt Betriebe und Arbeitsplätze.",merke:"In der Krise mehr auszugeben ist kein Fehler, sondern der Sinn der Versicherung."}},
+  {id:"a2",frage:"Wohin mit dem Überschuss: Beitragszahler entlasten, Arbeitslosen mehr zahlen oder für die nächste Krise sparen?",title:"Der Boom",
+   news:"Die Wirtschaft brummt, die Arbeitslosigkeit sinkt. Die Kasse macht einen Überschuss. Was machst du damit?",
+   crisis:{konj:2},
+   red:[["besch","Beitragssatz senken auf höchstens 2,4 %",(s,r)=>s.rate<=2.425],
+        ["arbl","Lohnersatz erhöhen auf mindestens 62 %",(s,r)=>s.repl>=62],
+        ["zukunft","Mindestens 3 Mrd. € zurücklegen",(s,r)=>s.reserve<=-3]],
+   concept:{term:"Rücklage",text:"In guten Jahren nimmt die Versicherung mehr ein, als sie ausgibt. Wer dann Geld zurücklegt, kann in der nächsten Krise zahlen, ohne die Beiträge ausgerechnet dann zu erhöhen.",merke:"Spare im Boom, damit du in der Krise helfen kannst."}}
+ ]},
+/* ---------------- UNFALL ---------------- */
+{id:"unfall",name:"Unfallversicherung",short:"Unfall",
+ intro:"Die Unfallversicherung bezahlt Behandlung, Reha und Renten nach Arbeitsunfällen und Berufskrankheiten – und sorgt für Arbeitsschutz.",
+ groups:{
+  ag:{name:"Arbeitgeber",who:"Arbeitgeberverband"},
+  verl:{name:"Verletzte und Erkrankte",who:"Opferverband"},
+  sicher:{name:"Beschäftigte (Sicherheit)",who:"Betriebsräte"}},
+ params:{
+  rate:{label:"Beitragssatz",min:0.5,max:2,step:0.01,def:0.85,fmt:v=>nf(v,2)+" % der Lohnsumme",group:"ag",
+   what:"Wie viel Prozent der Lohnsumme die Betriebe zahlen. Nur die Arbeitgeber zahlen, die Beschäftigten nichts.",
+   effect:"Mehr Beitrag bringt Geld, macht aber jede Arbeitsstunde für die Betriebe teurer."},
+  benefit:{label:"Leistungen bei Unfällen",min:70,max:120,step:5,def:100,fmt:v=>nf(v,0)+" % von heute",group:"verl",
+   what:"Behandlung, Reha, Verletztengeld und Renten nach einem Arbeitsunfall.",
+   effect:"Weniger Leistung spart Geld. Verletzte bekommen dann schlechtere Reha oder weniger Geld."},
+  prev:{label:"Prävention",min:0,max:4,step:0.1,def:1,fmt:v=>nf(v,1)+" Mrd. €",group:"sicher",
+   what:"Geld für Schutzausrüstung, Schulungen und Kontrollen, damit Unfälle gar nicht erst passieren.",
+   effect:"Mehr Prävention kostet Geld, verhindert aber Unfälle. Weniger Prävention spart kaum etwas, kostet aber Gesundheit."},
+  risk:{label:"Unfallrisiko",def:23,fmt:v=>nf(v,0)+" je 1.000"},
+  bkx:{label:"Neue Berufskrankheiten",def:0,fmt:v=>nf(v,1)+" Mrd. €"}},
+ compute(s){
+  const red=0.15*(1-Math.exp(-s.prev/1.2)),eff=s.risk*(1-red);
+  const acc=eff/1000*37e6,costAcc=14000*s.benefit/100;
+  const accCost=acc*costAcc/1e9,bk=(2.5+s.bkx)*s.benefit/100;
+  const income=s.rate/100*1750;
+  return{income:income,expense:accCost+bk+s.prev,
+   m:{ag:s.rate/100*1750/37*1000/12,acc:acc,prevented:(s.risk-eff)/1000*37e6},
+   inParts:[["Arbeitgeberbeiträge",income]],outParts:[["Unfälle",accCost],["Berufskrankheiten",bk],["Prävention",s.prev]]};
+ },
+ metrics:[["ag","Beitrag je Beschäftigtem",r=>nf(r.m.ag,0)+" €"],["sicher","Arbeitsunfälle pro Jahr",r=>nf(r.m.acc/1000,0)+" Tsd."],["sicher","Verhinderte Unfälle",r=>nf(r.m.prevented/1000,0)+" Tsd."],["verl","Dein Beitrag",r=>"0 €"]],
+ levels:[
+  {id:"u1",frage:"Wer soll für mehr Sicherheit auf dem Bau bezahlen – und wie viele Unfälle sind hinnehmbar?",title:"Boom auf dem Bau",
+   news:"Viele neue Baustellen, viele unerfahrene Arbeitskräfte. Das Unfallrisiko steigt auf 40 je 1.000 Beschäftigte.",
+   crisis:{risk:40},
+   red:[["ag","Beitragssatz höchstens 1,25 %",(s,r)=>s.rate<=1.255],
+        ["verl","Leistungen mindestens 95 % von heute",(s,r)=>s.benefit>=95],
+        ["sicher","Höchstens 1,3 Mio. Unfälle im Jahr",(s,r)=>r.m.acc<=1.3e6]],
+   concept:{term:"Gefahrklassen",text:"Die Beiträge zahlen allein die Arbeitgeber. Wie hoch sie sind, hängt vom Unfallrisiko der Branche ab: Eine Baufirma zahlt mehr als ein Büro.",merke:"Wer das Risiko verursacht, trägt die Kosten – und hat einen Grund, in Sicherheit zu investieren."}},
+  {id:"u2",frage:"Wer trägt die Kosten neuer Berufskrankheiten: die Betriebe oder die Erkrankten?",title:"Neue Berufskrankheiten",
+   news:"Hautkrebs durch Sonne bei Arbeit im Freien und Lärmschäden werden häufiger anerkannt. Das kostet jedes Jahr 3 Mrd. € mehr.",
+   crisis:{bkx:3},
+   red:[["ag","Beitragssatz höchstens 0,95 %",(s,r)=>s.rate<=0.955],
+        ["verl","Leistungen mindestens 95 % von heute",(s,r)=>s.benefit>=95],
+        ["sicher","Höchstens 800 Tsd. Unfälle im Jahr",(s,r)=>r.m.acc<=8.0e5]],
+   concept:{term:"Prävention",text:"Unfälle verhindern ist besser als Unfälle bezahlen. Die erste Milliarde für Arbeitsschutz verhindert viele Unfälle, jede weitere Milliarde weniger zusätzliche.",merke:"Abnehmender Nutzen: Mehr Geld hilft, aber jeder weitere Euro bringt weniger."}}
+ ]}
+];
+
+/* ===== Hilfsfunktionen ===== */
+function policyKeys(c){return Object.keys(c.params).filter(k=>c.params[k].group);}
+function baseState(c,lv){const s={};for(const k in c.params)s[k]=c.params[k].def;Object.assign(s,lv.crisis);return s;}
+function defaultState(c){const s={};for(const k in c.params)s[k]=c.params[k].def;return s;}
+function evalState(c,s){const r=c.compute(s);r.bal=r.income-r.expense;return r;}
+function tol(r){return Math.max(0.02*r.income,0.5);}
+function balanced(r){return Math.abs(r.bal)<=tol(r);}
+/* Beitrag jeder Gruppe zur Veränderung des Kassenstands (Mrd. €), bezogen auf den Krisenstand */
+function burden(c,lv,s){
+  const base=baseState(c,lv),r=evalState(c,s),gap=evalState(c,base).bal,res={};
+  for(const g in c.groups)res[g]=0;
+  for(const k of policyKeys(c)){
+    const t=Object.assign({},s);t[k]=base[k];
+    res[c.params[k].group]+=r.bal-evalState(c,t).bal;
+  }
+  return{by:res,gap:gap,total:r.bal-gap};
+}
+function mainGroup(c,b){let best=null,v=0;for(const g in b.by){if(Math.abs(b.by[g])>v){v=Math.abs(b.by[g]);best=g;}}return best;}
+function redStatus(c,lv,s){const r=evalState(c,s);return lv.red.map(([g,txt,f])=>({g,txt,ok:!!f(s,r)}));}
+if(typeof module!=="undefined")module.exports={CH,policyKeys,baseState,defaultState,evalState,balanced,burden,mainGroup,redStatus,tol,nf,sgn};
+
+
+/* ===== Speicher ===== */
+const KEY="kassensturz-v1";
+let G={kuerzel:"",levels:{},final:""};
+try{const raw=localStorage.getItem(KEY);if(raw){const o=JSON.parse(raw);if(o&&typeof o==="object")G=Object.assign(G,o);}}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(G));}catch(e){}};
+window.claude?.hot?.snapshot?.(()=>({G}));
+if(window.claude?.hot?.data?.G)G=window.claude.hot.data.G;
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=(s,r=document)=>r.querySelector(s);
+const app=$("#app");
+const reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const DIRS=[["up","steigt"],["eq","bleibt etwa gleich"],["down","sinkt"]];
+const CONF=[["guess","geraten"],["mid","ziemlich sicher"],["sure","sehr sicher"]];
+const lab=(a,k)=>(a.find(x=>x[0]===k)||[0,"–"])[1];
+
+function L(id){return G.levels[id]||(G.levels[id]={sols:[]});}
+function starsOf(id){
+  const l=G.levels[id];if(!l||!l.sols.length)return 0;
+  let s=1;if(l.sols.some(x=>x.redOk))s++;
+  const mains=new Set(l.sols.map(x=>x.main));if(mains.size>=2)s++;
+  return s;
+}
+function starsHtml(n,cls="stars"){let h='<span class="'+cls+'" aria-label="'+n+' von 3 Sternen">';for(let i=0;i<3;i++)h+='<span class="'+(i<n?"on":"off")+'" aria-hidden="true">★</span>';return h+"</span>";}
+const allLevels=()=>CH.flatMap((c,ci)=>c.levels.map((lv,li)=>({c,lv,ci,li})));
+const totalStars=()=>allLevels().reduce((a,x)=>a+starsOf(x.lv.id),0);
+const termsCount=()=>allLevels().filter(x=>starsOf(x.lv.id)>0).length;
+
+function seg(name,opts,val,onPick){
+  const d=document.createElement("div");d.className="seg";d.setAttribute("role","group");d.setAttribute("aria-label",name);
+  opts.forEach(([k,l])=>{const b=document.createElement("button");b.type="button";b.textContent=l;b.setAttribute("aria-pressed",val===k?"true":"false");
+    b.addEventListener("click",()=>{d.querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed","false"));b.setAttribute("aria-pressed","true");onPick(k);});d.appendChild(b);});
+  return d;
+}
+function go(fn){app.innerHTML="";fn();window.scrollTo({top:0,behavior:reduce?"auto":"smooth"});}
+
+/* ===== Start ===== */
+function viewStart(){
+  const resume=Object.keys(G.levels).length>0;
+  app.innerHTML=`
+  <section class="hero">
+    <div class="masthead"><div class="paper">Kassensturz</div><div class="date">Das Spiel zu den Sozialversicherungen</div></div>
+    <p class="lede">Du übernimmst die Sozialkommission. Fünf Kassen, zehn Krisen – und jede Lösung trifft jemanden.</p>
+    <div class="rules">
+      <div class="card"><h3>1 · Krise vorhersagen</h3><p class="sub">Eine Eilmeldung trifft ein. Sag vorher, was mit der Kasse passiert, und sieh, ob du recht hattest.</p></div>
+      <div class="card"><h3>2 · Kasse ausgleichen</h3><p class="sub">Dreh an den Stellschrauben, bis Einnahmen und Ausgaben wieder zusammenpassen.</p></div>
+      <div class="card"><h3>3 · Vor die Presse</h3><p class="sub">Begründe deine Entscheidung. Die Interessengruppen reagieren darauf.</p></div>
+    </div>
+    <div class="card"><h3 style="font-size:1.05rem;margin-bottom:6px">So bekommst du Sterne</h3>
+      <div class="starlist">
+        <div>${starsHtml(1)}<span>Die Kasse ist ausgeglichen.</span></div>
+        <div>${starsHtml(2)}<span>… und du hast keine rote Linie einer Gruppe überschritten.</span></div>
+        <div>${starsHtml(3)}<span>… und du findest eine zweite Lösung, bei der eine andere Gruppe am stärksten betroffen ist.</span></div>
+      </div>
+      <p class="sub small" style="margin-top:10px">Es gibt keine Zeitwertung und keine Rangliste. Es zählt, wie gut du abwägst.</p>
+    </div>
+    <form class="start-form" id="startForm">
+      <label for="kuerzel">Dein Kürzel (kein voller Name)</label>
+      <input type="text" id="kuerzel" maxlength="20" autocomplete="off" value="${esc(G.kuerzel)}">
+      <div class="row" style="margin-top:6px"><button class="btn solid" type="submit">${resume?"Weiterspielen":"Amt übernehmen"}</button></div>
+    </form>
+  </section>`;
+  $("#startForm").addEventListener("submit",e=>{e.preventDefault();G.kuerzel=$("#kuerzel").value.trim();save();go(viewMap);});
+}
+
+/* ===== Karte ===== */
+function topbar(){
+  return `<div class="topbar"><div class="brand">Kassensturz</div>
+   <div class="row"><span class="stat"><span class="stars"><span class="on" aria-hidden="true">★</span></span> ${totalStars()} / 30 Sterne</span>
+   <span class="stat sub">Begriffe ${termsCount()} / 10</span>
+   ${G.kuerzel?`<span class="chip">${esc(G.kuerzel)}</span>`:""}</div></div>`;
+}
+function viewMap(){
+  let h=topbar()+'<div class="chapters">';
+  CH.forEach((c,ci)=>{
+    h+=`<section class="card chapter"><h2>${esc(c.name)}</h2><p>${esc(c.intro)}</p>`;
+    c.levels.forEach((lv,li)=>{
+      const locked=li>0&&starsOf(c.levels[li-1].id)===0;
+      h+=`<button class="lvl" type="button" data-ci="${ci}" data-li="${li}" ${locked?"disabled":""}>
+        <span><span class="n">Krise ${li+1}${locked?" · erst Krise 1 lösen":""}</span><span class="t">${esc(lv.title)}</span></span>${starsHtml(starsOf(lv.id))}</button>`;
+    });
+    h+="</section>";
+  });
+  h+=`</div><div class="row" style="margin-top:18px">
+   <button class="btn" type="button" id="toTerms">Begriffe-Sammlung</button>
+   <button class="btn solid" type="button" id="toBilanz">Amtsbilanz und Abgabe</button>
+   <button class="btn quiet" type="button" id="toStart">Zur Startseite</button></div>`;
+  app.innerHTML=h;
+  app.querySelectorAll(".lvl").forEach(b=>b.addEventListener("click",()=>startLevel(+b.dataset.ci,+b.dataset.li)));
+  $("#toTerms").addEventListener("click",()=>go(viewTerms));
+  $("#toBilanz").addEventListener("click",()=>go(viewBilanz));
+  $("#toStart").addEventListener("click",()=>go(viewStart));
+}
+
+/* ===== Level ===== */
+let C=null; // {c,lv,s,mode,first}
+function startLevel(ci,li){
+  const c=CH[ci],lv=c.levels[li];
+  C={c,lv,ci,li,s:baseState(c,lv),pred:null,conf:null};
+  go(viewNews);
+}
+function crisisChips(){
+  const c=C.c,d=defaultState(c);
+  return Object.keys(C.lv.crisis).map(k=>`<span class="chip bad">${esc(c.params[k].label)}: ${esc(c.params[k].fmt(d[k]))} → ${esc(c.params[k].fmt(C.lv.crisis[k]))}</span>`).join("");
+}
+function viewNews(){
+  const l=L(C.lv.id),done=l.pred!=null;
+  app.innerHTML=`<div class="lvhead"><span class="chip acc">${esc(C.c.name)} · Krise ${C.li+1}</span><button class="btn quiet" type="button" id="back">Zur Karte</button></div>
+  <article class="news"><div class="band">Eilmeldung</div><div class="body">
+    <h1>${esc(C.lv.title)}</h1><p class="txt">${esc(C.lv.news)}</p>
+    <div class="crisis-chips">${crisisChips()}</div>
+    <div class="frage"><span class="k">Die politische Kernfrage</span><p>${esc(C.lv.frage)}</p></div></div></article>
+  <section class="card" style="margin-top:16px;display:grid;gap:12px" id="predBox"></section>`;
+  $("#back").addEventListener("click",()=>go(viewMap));
+  const box=$("#predBox");
+  if(done){
+    box.innerHTML=`<h2 style="font-size:1.2rem">Deine Vorhersage stand schon fest</h2><p class="sub">Du hattest „${lab(DIRS,l.pred)}“ vorhergesagt (${lab(CONF,l.conf)}). Das war ${l.hit?"richtig":"daneben"}.</p><div class="row"><button class="btn solid" type="button" id="toMission">Zur Kommission</button></div>`;
+    $("#toMission").addEventListener("click",()=>go(()=>viewMission("first")));
+    return;
+  }
+  box.innerHTML=`<h2 style="font-size:1.2rem">Was passiert jetzt mit dem Kassenstand?</h2><div id="sDir"></div>
+   <h3 style="font-size:1rem">Wie sicher bist du?</h3><div id="sConf"></div>
+   <label for="predWhy" style="font-weight:700">Weil … <span class="sub" style="font-weight:400">(freiwillig)</span></label>
+   <input type="text" id="predWhy" maxlength="200" autocomplete="off">
+   <div class="row"><button class="btn solid" type="button" id="reveal" disabled>Krise auslösen</button></div>`;
+  const ready=()=>{$("#reveal").disabled=!(C.pred&&C.conf);};
+  $("#sDir").replaceWith(seg("Vorhersage",DIRS,null,k=>{C.pred=k;ready();}));
+  $("#sConf").replaceWith(seg("Sicherheit",CONF,null,k=>{C.conf=k;ready();}));
+  $("#reveal").addEventListener("click",()=>{
+    const a=evalState(C.c,defaultState(C.c)),b=evalState(C.c,baseState(C.c,C.lv));
+    const d=b.bal-a.bal,rel=Math.abs(d)/Math.max(a.income,1),actual=rel<0.005?"eq":d>0?"up":"down";
+    const l=L(C.lv.id);l.pred=C.pred;l.conf=C.conf;l.why=$("#predWhy").value.trim();l.actual=actual;l.hit=C.pred===actual;l.delta=d;save();
+    go(viewReveal);
+  });
+}
+function viewReveal(){
+  const l=L(C.lv.id),c=C.c;
+  const a=evalState(c,defaultState(c)),b=evalState(c,baseState(c,C.lv));
+  const what=l.actual==="eq"?"bleibt fast gleich":l.actual==="up"?"steigt um "+nf(Math.abs(l.delta),1)+" Mrd. €":"sinkt um "+nf(Math.abs(l.delta),1)+" Mrd. €";
+  app.innerHTML=`<div class="lvhead"><span class="chip acc">${esc(c.name)} · Krise ${C.li+1}</span></div>
+  <div class="grid"><div class="card scale" id="scale">${scaleSvg()}<div class="saldo"><span>Kassenstand pro Jahr</span><b id="saldo"></b></div></div>
+  <section class="card" style="display:grid;gap:10px">
+    <h2 style="font-size:1.5rem;color:${l.hit?"var(--pos)":"var(--flag)"}">${l.hit?"Richtig vorhergesagt":"Überraschung!"}</h2>
+    <p>Der Kassenstand ${what}. Einnahmen ${sgn(b.income-a.income)} Mrd. €, Ausgaben ${sgn(b.expense-a.expense)} Mrd. €.${l.hit?"":" Du hattest „"+lab(DIRS,l.pred)+"“ erwartet."}</p>
+    ${!l.hit&&l.conf==="sure"?'<p class="banner" style="margin:0">Du warst dir sehr sicher. Genau solche Überraschungen zeigen, wo sich Nachdenken lohnt.</p>':""}
+    <label for="explain" style="font-weight:700">${l.hit?"Kannst du erklären, warum?":"Wie erklärst du dir das?"} <span class="sub" style="font-weight:400">(freiwillig)</span></label>
+    <textarea id="explain" style="min-height:80px">${esc(l.explain||"")}</textarea>
+    <div class="row"><button class="btn solid" type="button" id="toMission">Zur Kommission</button></div>
+  </section></div>`;
+  $("#explain").addEventListener("input",e=>{l.explain=e.target.value;save();});
+  $("#toMission").addEventListener("click",()=>go(()=>viewMission("first")));
+  drawScale(a,0);
+  setTimeout(()=>drawScale(b,1),reduce?0:500);
+}
+
+/* ---- Waage ---- */
+function scaleSvg(){return `<svg viewBox="0 0 400 230" role="img" aria-label="Waage: Einnahmen gegen Ausgaben">
+  <line class="pole" x1="200" y1="52" x2="200" y2="205"/><rect class="foot" x="160" y="205" width="80" height="9" rx="4"/>
+  <g id="panL"><line class="string" x1="50" y1="52" x2="16" y2="112"/><line class="string" x1="50" y1="52" x2="84" y2="112"/>
+   <path class="pan" d="M8 112 H92 Q90 130 50 132 Q10 130 8 112 Z"/><text class="pan-l" x="50" y="152">Einnahmen</text><text class="pan-v" x="50" y="172" id="vIn"></text></g>
+  <g id="panR"><line class="string" x1="350" y1="52" x2="316" y2="112"/><line class="string" x1="350" y1="52" x2="384" y2="112"/>
+   <path class="pan" d="M308 112 H392 Q390 130 350 132 Q310 130 308 112 Z"/><text class="pan-l" x="350" y="152">Ausgaben</text><text class="pan-v" x="350" y="172" id="vOut"></text></g>
+  <g id="beam"><line class="beam" x1="50" y1="52" x2="350" y2="52"/></g><circle class="pivot" cx="200" cy="52" r="9"/></svg>`;}
+let ang=0,raf=0;
+function placeScale(a){const rad=a*Math.PI/180,Lx=150,dx=Lx*(Math.cos(rad)-1),dy=Lx*Math.sin(rad);
+  const bm=$("#beam"),pl=$("#panL"),pr=$("#panR");if(!bm)return;
+  bm.setAttribute("transform","rotate("+a.toFixed(2)+" 200 52)");pl.setAttribute("transform","translate("+(-dx).toFixed(2)+" "+(-dy).toFixed(2)+")");pr.setAttribute("transform","translate("+dx.toFixed(2)+" "+dy.toFixed(2)+")");}
+function drawScale(r,animate){
+  const target=Math.max(-16,Math.min(16,(r.expense-r.income)/Math.max(r.income,1)*90));
+  const sc=$("#scale");if(!sc)return;
+  sc.classList.toggle("deficit",!balanced(r)&&r.bal<0);
+  $("#vIn").textContent=nf(r.income,1)+" Mrd. €";$("#vOut").textContent=nf(r.expense,1)+" Mrd. €";
+  const sal=$("#saldo");if(sal)sal.textContent=sgn(r.bal)+" Mrd. €";
+  cancelAnimationFrame(raf);
+  if(reduce||!animate){ang=target;placeScale(ang);return;}
+  const from=ang,t0=performance.now();
+  const step=t=>{const k=Math.min(1,(t-t0)/450),e=1-Math.pow(1-k,3);ang=from+(target-from)*e;placeScale(ang);if(k<1)raf=requestAnimationFrame(step);};
+  raf=requestAnimationFrame(step);
+}
+
+/* ---- Mission ---- */
+function viewMission(mode){
+  const c=C.c,lv=C.lv,l=L(lv.id);
+  C.mode=mode;C.s=baseState(c,lv);
+  const firstMain=l.sols.length?l.sols[0].main:null;
+  C.avoid=mode==="second"?firstMain:null;
+  const surplus=evalState(c,C.s).bal>0;
+  let levers="";
+  for(const k of policyKeys(c)){
+    const p=c.params[k],id="p-"+k;
+    levers+=`<div class="param"><div class="ph"><label for="${id}">${esc(p.label)}</label>
+      <button class="q" type="button" aria-expanded="false" aria-controls="${id}-i" aria-label="Erklärung zu ${esc(p.label)}">?</button>
+      <output id="${id}-o" for="${id}"></output></div>
+      <div class="gtag">betrifft: ${esc(c.groups[p.group].name)}</div>
+      <input type="range" id="${id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${C.s[k]}">
+      <div class="pf"><span>${esc(p.fmt(p.min))}</span><span>${esc(p.fmt(p.max))}</span></div>
+      <div class="info" id="${id}-i" hidden><p><b>Was ist das?</b> ${esc(p.what)}</p><p><b>Wenn du daran drehst:</b> ${esc(p.effect)}</p></div></div>`;
+  }
+  let reds="";
+  lv.red.forEach(([g,txt],i)=>{reds+=`<div class="red"><span class="chip" id="rc${i}">offen</span><div><div class="who">${esc(c.groups[g].who)}</div><div class="dem">${esc(txt)}</div></div></div>`;});
+  app.innerHTML=`<div class="lvhead"><div><span class="chip acc">${esc(c.name)} · Krise ${C.li+1}</span><h1 style="margin-top:6px">Die Kommission tagt</h1></div>
+     <button class="btn quiet" type="button" id="back">Zur Karte</button></div>
+   ${mode==="second"?`<p class="banner">Zweite Lösung: Finde einen anderen Weg. Diesmal soll nicht „${esc(c.groups[firstMain].name)}“ am stärksten betroffen sein.</p>`:""}
+   <div class="lagestrip scale" id="strip"><span class="k">${esc(lv.title)} · Kernfrage</span><p>${esc(lv.frage)}</p><b id="stripSaldo"></b></div>
+   <div class="grid">
+    <div class="board">
+      <section class="card lage"><div class="band">Die Lage</div><div class="in">
+        <h2>${esc(lv.title)}</h2><p class="txt">${esc(lv.news)}</p>
+        <div class="crisis-chips"><span class="chip">Fest vorgegeben:</span>${crisisChips()}</div>
+        <div class="frage"><span class="k">Die politische Kernfrage</span><p>${esc(lv.frage)}</p></div></div></section>
+      <div class="card scale" id="scale">${scaleSvg()}
+        <div class="saldo"><span>Kassenstand pro Jahr</span><b id="saldo"></b></div>
+        <p class="target" id="target"></p></div>
+      <div class="card burden"><h3>${surplus?"Wer bekommt den Überschuss?":"Wer trägt die Last?"}</h3><div id="burden"></div><p class="main-note" id="mainNote"></p></div>
+      <div class="metrics" id="metrics"></div>
+    </div>
+    <div style="display:grid;gap:16px">
+      <div class="card levers"><h3>Deine Stellschrauben</h3>${levers}</div>
+      <div class="card reds"><h3>Rote Linien der Gruppen</h3>${reds}</div>
+      <div class="decide"><p class="small sub" id="decHint"></p>
+        <div class="row"><button class="btn solid" type="button" id="decide" disabled>Lösung beschließen</button><button class="btn quiet" type="button" id="reset">Zurücksetzen</button></div></div>
+    </div>
+   </div>`;
+  $("#back").addEventListener("click",()=>go(viewMap));
+  for(const k of policyKeys(c)){
+    const id="p-"+k,inp=document.getElementById(id);
+    inp.addEventListener("input",()=>{C.s[k]=parseFloat(inp.value);updateMission(true);});
+    const q=inp.parentElement.querySelector(".q"),info=document.getElementById(id+"-i");
+    q.addEventListener("click",()=>{const o=q.getAttribute("aria-expanded")==="true";q.setAttribute("aria-expanded",o?"false":"true");info.hidden=o;});
+  }
+  $("#reset").addEventListener("click",()=>{C.s=baseState(c,lv);updateMission(true);});
+  $("#decide").addEventListener("click",()=>go(viewReason));
+  ang=0;updateMission(false);
+}
+function updateMission(animate){
+  const c=C.c,lv=C.lv,s=C.s,r=evalState(c,s),b=burden(c,lv,s),reds=redStatus(c,lv,s);
+  for(const k of policyKeys(c)){const p=c.params[k],inp=document.getElementById("p-"+k);inp.value=s[k];
+    inp.style.setProperty("--pct",((s[k]-p.min)/(p.max-p.min)*100)+"%");inp.setAttribute("aria-valuetext",p.fmt(s[k]));document.getElementById("p-"+k+"-o").textContent=p.fmt(s[k]);}
+  drawScale(r,animate);
+  const st=$("#strip");if(st){st.classList.toggle("deficit",!balanced(r)&&r.bal<0);$("#stripSaldo").textContent=sgn(r.bal)+" Mrd. €";}
+  const t=tol(r);$("#target").textContent="Ziel: Kassenstand zwischen "+sgn(-t)+" und "+sgn(t)+" Mrd. €.";
+  const scale=Math.max(Math.abs(b.gap),1);
+  let h="";
+  for(const g in c.groups){const v=b.by[g],w=Math.min(100,Math.abs(v)/scale*100),prof=v<-0.05;
+    h+=`<div class="brow"><span>${esc(c.groups[g].name)}</span><span class="val ${v>0.05?"last":prof?"prof":""}">${Math.abs(v)<0.05?"nicht betroffen":(v>0?"trägt ":"profitiert ")+nf(Math.abs(v),1)+" Mrd. €"}</span><div class="bar"><i class="${prof?"prof":""}" style="width:${w}%"></i></div></div>`;}
+  $("#burden").innerHTML=h;
+  const m=mainGroup(c,b),bal=balanced(r);
+  $("#mainNote").textContent=m&&Math.abs(b.by[m])>=0.05?"Am stärksten betroffen: "+c.groups[m].name:"Noch hast du nichts verändert.";
+  $("#metrics").innerHTML=c.metrics.map(([g,label,f])=>`<div class="metric"><b>${esc(f(r))}</b><span>${esc(label)}</span></div>`).join("");
+  reds.forEach((x,i)=>{const el=document.getElementById("rc"+i);el.className="chip "+(x.ok?"ok":"bad");el.textContent=x.ok?"eingehalten":"überschritten";});
+  let ok=bal,hint="";
+  if(!bal){const rest=Math.abs(r.bal)-t;hint=rest<0.15?"Fast geschafft – nur noch ein kleines Stück.":r.bal<0?"Es fehlen noch "+nf(rest,1)+" Mrd. €, bis die Kasse im Zielbereich ist.":"Die Kasse hat "+nf(rest,1)+" Mrd. € zu viel. Nimm etwas zurück oder verteile den Überschuss.";}
+  else if(C.avoid&&m===C.avoid){ok=false;hint="Ausgeglichen – aber wieder ist „"+c.groups[m].name+"“ am stärksten betroffen. Probier einen anderen Weg.";}
+  else hint=reds.every(x=>x.ok)?"Ausgeglichen und alle roten Linien eingehalten. Du kannst beschließen.":"Ausgeglichen, aber "+reds.filter(x=>!x.ok).length+" rote Linie(n) überschritten. Du kannst trotzdem beschließen oder weiter abwägen.";
+  $("#decHint").textContent=hint;$("#decide").disabled=!ok;
+}
+
+/* ---- Begründung ---- */
+function viewReason(){
+  const c=C.c,b=burden(c,C.lv,C.s),m=mainGroup(c,b);
+  const changed=policyKeys(c).filter(k=>Math.abs(C.s[k]-baseState(c,C.lv)[k])>1e-9).map(k=>c.params[k].label+": "+c.params[k].fmt(C.s[k]));
+  app.innerHTML=`<div class="lvhead"><span class="chip acc">${esc(c.name)} · Krise ${C.li+1}</span></div>
+  <section class="card" style="display:grid;gap:12px;max-width:760px">
+    <h1 style="font-size:1.6rem">Gleich trittst du vor die Presse</h1>
+    <div class="frage"><span class="k">Die Presse wird fragen</span><p>${esc(C.lv.frage)}</p></div>
+    <p><b>Deine Lösung:</b> ${esc(changed.join(" · "))}</p>
+    <p><b>Am stärksten betroffen:</b> ${esc(c.groups[m].name)}</p>
+    <label for="reason" style="font-weight:700">Beantworte die Kernfrage mit deiner Lösung: Warum hast du so entschieden? Und warum ist es vertretbar, dass vor allem „${esc(c.groups[m].name)}“ die Folgen trägt?</label>
+    <textarea id="reason"></textarea>
+    <p class="small sub" id="rHint">Schreib mindestens zwei Sätze.</p>
+    <div class="row"><button class="btn solid" type="button" id="press" disabled>Vor die Presse treten</button><button class="btn quiet" type="button" id="backM">Lösung ändern</button></div>
+  </section>`;
+  const ta=$("#reason"),bt=$("#press");
+  ta.addEventListener("input",()=>{const n=ta.value.trim().length;bt.disabled=n<60;$("#rHint").textContent=n<60?"Schreib mindestens zwei Sätze ("+n+" von 60 Zeichen).":"Bereit für die Presse.";});
+  $("#backM").addEventListener("click",()=>{const keep=Object.assign({},C.s);go(()=>{viewMission(C.mode);C.s=keep;updateMission(false);});});
+  bt.addEventListener("click",()=>{
+    const reds=redStatus(c,C.lv,C.s),l=L(C.lv.id),before=starsOf(C.lv.id);
+    const shares={};for(const g in b.by)shares[g]=b.by[g];
+    l.sols.push({s:Object.assign({},C.s),main:m,redOk:reds.every(x=>x.ok),broken:reds.filter(x=>!x.ok).map(x=>x.txt),reason:ta.value.trim(),by:shares,gap:b.gap,changed:changed});
+    save();C.before=before;go(viewPress);
+  });
+  ta.focus();
+}
+
+/* ---- Pressekonferenz ---- */
+function quoteFor(c,g,v,gap,broken){
+  const share=Math.abs(v)/Math.max(Math.abs(gap),1);
+  if(broken)return["bad","Unsere rote Linie ist überschritten: "+broken+". Das nehmen wir nicht hin."];
+  if(v>0.05&&share>=0.35)return["last","Wir tragen den größten Teil der Last. Das ist hart, aber gerade noch vertretbar."];
+  if(v>0.05)return["last","Wir müssen unseren Teil beitragen. Damit können wir leben."];
+  if(v<-0.05)return["prof","Gut für uns: Wir werden entlastet."];
+  return["ok","Uns betrifft die Entscheidung kaum. Wir sind einverstanden."];
+}
+function viewPress(){
+  const c=C.c,lv=C.lv,l=L(lv.id),sol=l.sols[l.sols.length-1],now=starsOf(lv.id);
+  const reds=redStatus(c,lv,sol.s);
+  let quotes="";
+  for(const g in c.groups){
+    const br=reds.filter(x=>x.g===g&&!x.ok).map(x=>x.txt).join(", ");
+    const [cls,txt]=quoteFor(c,g,sol.by[g],sol.gap,br);
+    quotes+=`<div class="quote ${cls}"><q>${esc(txt)}</q><span class="by">${esc(c.groups[g].who)} · für ${esc(c.groups[g].name)}</span></div>`;
+  }
+  const mains=new Set(l.sols.map(x=>x.main));
+  const can3=mains.size<2;
+  const next=C.li+1<c.levels.length?{ci:C.ci,li:C.li+1}:null;
+  const newStars=now>C.before;
+  app.innerHTML=`<div class="lvhead"><span class="chip acc">${esc(c.name)} · Krise ${C.li+1}</span></div>
+  <div class="grid">
+   <section class="card press">
+     <h1 style="font-size:1.6rem">Pressekonferenz</h1>
+     <div class="frage"><span class="k">Frage der Presse</span><p>${esc(lv.frage)}</p></div>
+     <div class="quote"><q>${esc(sol.reason)}</q><span class="by">Deine Antwort · Sozialkommission</span></div>
+     <h2 style="font-size:1.1rem">So reagieren die Gruppen</h2>${quotes}
+   </section>
+   <div style="display:grid;gap:16px">
+     <section class="card" style="display:grid;gap:8px">
+       <div>${starsHtml(now,"starbig")}</div>
+       <p><b>${newStars?"Neue Sterne!":"Keine neuen Sterne bei diesem Versuch."}</b></p>
+       <div class="starlist small">
+         <div>${now>=1?"✓":"·"} <span>Kasse ausgeglichen</span></div>
+         <div>${l.sols.some(x=>x.redOk)?"✓":"·"} <span>Keine rote Linie überschritten${sol.redOk?"":" (diesmal: "+sol.broken.length+" überschritten)"}</span></div>
+         <div>${!can3?"✓":"·"} <span>Zweite Lösung mit einer anderen Hauptlast</span></div>
+       </div>
+     </section>
+     <section class="concept"><span class="k">${C.before===0?"Fachbegriff freigeschaltet":"Fachbegriff"}</span><h2>${esc(lv.concept.term)}</h2><p>${esc(lv.concept.text)}</p><p class="m">${esc(lv.concept.merke)}</p></section>
+     <div class="row">
+       ${can3?'<button class="btn solid" type="button" id="second">Zweite Lösung finden</button>':""}
+       ${!l.sols.some(x=>x.redOk)?'<button class="btn" type="button" id="retry">Nochmal ohne rote Linie versuchen</button>':""}
+       ${next?'<button class="btn '+(can3?"":"solid")+'" type="button" id="next">Nächste Krise</button>':""}
+       <button class="btn quiet" type="button" id="map">Zur Karte</button>
+     </div>
+   </div>
+  </div>`;
+  $("#map").addEventListener("click",()=>go(viewMap));
+  if(can3)$("#second").addEventListener("click",()=>go(()=>viewMission("second")));
+  const rt=$("#retry");if(rt)rt.addEventListener("click",()=>go(()=>viewMission("first")));
+  if(next)$("#next").addEventListener("click",()=>startLevel(next.ci,next.li));
+}
+
+/* ===== Begriffe ===== */
+function viewTerms(){
+  let h=topbar()+'<div class="lvhead"><h1>Begriffe-Sammlung</h1><button class="btn quiet" type="button" id="map">Zur Karte</button></div><div class="terms">';
+  allLevels().forEach(({c,lv})=>{const open=starsOf(lv.id)>0;
+    h+=open?`<article class="card term"><span class="chip acc">${esc(c.short)}</span><h3 style="margin-top:8px">${esc(lv.concept.term)}</h3><p>${esc(lv.concept.text)}</p><p style="margin-top:8px;font-weight:700">${esc(lv.concept.merke)}</p></article>`
+      :`<article class="card term locked"><span class="chip">${esc(c.short)}</span><h3 style="margin-top:8px">???</h3><p class="sub">Löse „${esc(lv.title)}“, um diesen Begriff freizuschalten.</p></article>`;});
+  app.innerHTML=h+"</div>";
+  $("#map").addEventListener("click",()=>go(viewMap));
+}
+
+/* ===== Bilanz ===== */
+function badges(){
+  const lv=allLevels(),preds=lv.map(x=>G.levels[x.lv.id]).filter(l=>l&&l.pred);
+  const hits=preds.filter(l=>l.hit).length;
+  const sols=lv.flatMap(x=>(G.levels[x.lv.id]||{sols:[]}).sols);
+  const fair=sols.filter(s=>{const tot=Object.values(s.by).reduce((a,v)=>a+Math.abs(v),0)||1;return Object.values(s.by).every(v=>Math.abs(v)/tot<=0.5);}).length;
+  const two=lv.filter(x=>starsOf(x.lv.id)>=2).length,three=lv.filter(x=>starsOf(x.lv.id)===3).length;
+  return[
+    ["Vorhersage-Profi","Mindestens 5 Vorhersagen, davon 70 % richtig",preds.length>=5&&hits/preds.length>=0.7,hits+" von "+preds.length+" richtig"],
+    ["Faire Verteilung","3 Lösungen, bei denen keine Gruppe mehr als die Hälfte trägt",fair>=3,fair+" von 3"],
+    ["Brückenbauer","5 Krisen ohne überschrittene rote Linie",two>=5,two+" von 5"],
+    ["Querdenker","3 Krisen mit zwei verschiedenen Lösungen",three>=3,three+" von 3"]];
+}
+function exportText(){
+  let t="Kassensturz – Amtsbilanz\nKürzel: "+(G.kuerzel||"–")+"\nSterne: "+totalStars()+" von 30\n\n";
+  allLevels().forEach(({c,lv})=>{const l=G.levels[lv.id];if(!l||(!l.pred&&!l.sols.length))return;
+    t+="== "+c.name+": "+lv.title+" ("+starsOf(lv.id)+" Sterne) ==\nKernfrage: "+lv.frage+"\n";
+    if(l.pred)t+="Vorhersage: "+lab(DIRS,l.pred)+" ("+lab(CONF,l.conf)+") – "+(l.hit?"richtig":"daneben")+(l.why?"\n  weil: "+l.why:"")+(l.explain?"\n  Erklärung danach: "+l.explain.trim():"")+"\n";
+    l.sols.forEach((s,i)=>{t+="Lösung "+(i+1)+": "+s.changed.join("; ")+"\n  Am stärksten betroffen: "+c.groups[s.main].name+(s.redOk?"\n  Alle roten Linien eingehalten":"\n  Überschritten: "+s.broken.join("; "))+"\n  Begründung: "+s.reason+"\n";});
+    t+="\n";});
+  t+="Abschlussfrage: "+(G.final||"–")+"\n";
+  return t;
+}
+function viewBilanz(){
+  let rows="";
+  allLevels().forEach(({c,lv})=>{const l=G.levels[lv.id];const sol=l&&l.sols[0];
+    rows+=`<tr><td><b>${esc(lv.title)}</b><br><span class="sub small">${esc(c.short)}</span></td><td>${starsHtml(starsOf(lv.id))}</td>
+     <td>${l&&l.pred?(l.hit?'<span class="chip ok">richtig</span>':'<span class="chip bad">daneben</span>'):"–"}</td>
+     <td>${sol?esc(c.groups[sol.main].name):"–"}</td><td>${l?l.sols.length:0}</td></tr>`;});
+  const bd=badges().map(([n,d,on,p])=>`<div class="card badge ${on?"":"locked"}"><b>${on?"✓ ":""}${esc(n)}</b><span class="sub small">${esc(d)}</span><span class="small">${esc(p)}</span></div>`).join("");
+  app.innerHTML=topbar()+`<div class="lvhead"><h1>Amtsbilanz</h1><button class="btn quiet" type="button" id="map">Zur Karte</button></div>
+   <section class="card"><div class="tablewrap"><table><thead><tr><th>Krise</th><th>Sterne</th><th>Vorhersage</th><th>Hauptlast (1. Lösung)</th><th>Lösungen</th></tr></thead><tbody>${rows}</tbody></table></div></section>
+   <h2 style="margin:20px 0 10px;font-size:1.2rem">Auszeichnungen</h2><div class="badges">${bd}</div>
+   <section class="card" style="margin-top:20px;display:grid;gap:10px">
+     <label for="final" style="font-weight:700">Abschlussfrage: Welche Gruppe musste in deiner Amtszeit am häufigsten die Hauptlast tragen? Findest du das gerecht? Begründe.</label>
+     <textarea id="final">${esc(G.final||"")}</textarea>
+     <label for="kz" style="font-weight:700">Dein Kürzel</label><input type="text" id="kz" maxlength="20" value="${esc(G.kuerzel)}" autocomplete="off">
+     <div class="row"><button class="btn solid" type="button" id="collect">Abgabe-Text erstellen</button><button class="btn" type="button" id="copy" hidden>Kopieren</button></div>
+     <textarea id="out" readonly hidden aria-label="Abgabe-Text" style="min-height:220px"></textarea>
+     <p class="small sub">Kopiere den Text und füge ihn in die IServ-Aufgabe ein.</p>
+   </section>
+   <section class="card" style="margin-top:20px;display:grid;gap:8px"><h3 style="font-size:1rem">Spielstand</h3><p class="sub small">Dein Fortschritt wird nur in diesem Browser gespeichert.</p>
+     <div class="row"><button class="btn quiet" type="button" id="wipe">Spielstand löschen</button></div></section>`;
+  $("#map").addEventListener("click",()=>go(viewMap));
+  $("#final").addEventListener("input",e=>{G.final=e.target.value;save();});
+  $("#kz").addEventListener("input",e=>{G.kuerzel=e.target.value.trim();save();});
+  $("#collect").addEventListener("click",()=>{const o=$("#out");o.hidden=false;o.value=exportText();$("#copy").hidden=false;});
+  $("#copy").addEventListener("click",async()=>{const o=$("#out");try{await navigator.clipboard.writeText(o.value);$("#copy").textContent="Kopiert";}catch(e){o.select();$("#copy").textContent="Markiert – jetzt kopieren";}});
+  let armed=false;
+  $("#wipe").addEventListener("click",e=>{if(!armed){armed=true;e.target.textContent="Wirklich alles löschen?";e.target.classList.remove("quiet");return;}
+    G={kuerzel:"",levels:{},final:""};save();go(viewStart);});
+}
+
+go(viewStart);
+</script>
+
+</body>
+</html>
